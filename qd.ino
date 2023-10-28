@@ -1,5 +1,7 @@
 #include <DynamixelShield.h>
 #include "Robot.hpp"
+#include "QDServer.hpp"
+#include "QDMessage.hpp"
 
 //#define ENABLE_SYNC
 
@@ -137,10 +139,20 @@ void slerpJoints() {
 }
 */
 
+const char *remoteIP = "127.0.0.1";
+uint16_t remotePort = 3567;
+QDServer server;
+
 void setup() {
   Serial.begin(115200);
   delay(2000);
   // while(!Serial);
+
+  if(!server.joinNetwork(5)) {
+    while(true);
+  }
+
+  server.startUDP(remoteIP, remotePort);
 
   dxl = new DynamixelShield;
   dxl->begin(57600);
@@ -174,7 +186,14 @@ Vector4 frontRightTarget(71.0, -bodyHeight, 75.0),
         backRightTarget(71.0, -bodyHeight, -75.0),
         backLeftTarget(-71.0, -bodyHeight, -75.0);
 
+const int udpSendBufLen = 81;
+char udpSendBuf[udpSendBufLen];
+
+const int udpRecvBufLen = 81;
+char udpRecvBuf[udpRecvBufLen];
+
 void loop() {
+    /*
     float offset = 0.0; // 30.0 * sinf(angle);
     float frontLift = 60.0 * sinf(angle) - 30.0;
     float backLift = 60.0 * sinf(angle) - 30.0;
@@ -199,12 +218,17 @@ void loop() {
     backLeftTarget[2] = -75 + forwardShift;
     
     qd.setIKTargets(frontRightTarget, frontLeftTarget, backRightTarget, backLeftTarget);
+    */
+    
+    /*
     qd.update();
+
     // qd.printIKAngles();
 
     if(!setJoints()) {
       Serial.println("Sync-write failed");
     }
+
     // slerpJoints();
 
     // Serial.println();
@@ -213,4 +237,39 @@ void loop() {
 
     if(angle >= TwoPI) angle = 0.0;
     angle += angularSpeed;
+    */
+
+    if(server.sendLoop() >= 0) {
+      // Message complete, ready for next
+      server.setSendInfo(udpSendBuf, udpSendBufLen);
+    }
+
+    int result = server.recvLoop();
+    if(result >= 0) {
+      if(result > 0) {
+        // Message complete, ready for next
+        QDPoseSwapped *swapped = (QDPoseSwapped *) udpRecvBuf;
+        QDPose pose(*swapped);
+        Serial.println("Received Pose Data");
+        Serial.print("Hips: ");
+        for(int i = 0; i < 4; i++) {
+          if(i) Serial.print(", ");
+          Serial.print(pose.hips[i]);
+        }
+        Serial.print("\nShoulders: ");
+        for(int i = 0; i < 4; i++) {
+          if(i) Serial.print(", ");
+          Serial.print(pose.shoulders[i]);
+        }
+        Serial.print("\nElbows: ");
+        for(int i = 0; i < 4; i++) {
+          if(i) Serial.print(", ");
+          Serial.print(pose.elbows[i]);
+        }
+        Serial.println("");
+        qd.setAngles(Vector4(pose.hips), Vector4(pose.shoulders), Vector4(pose.elbows));
+        setJoints();
+      }
+      server.setRecvInfo(udpRecvBuf, udpRecvBufLen);
+    }
 }

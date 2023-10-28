@@ -119,6 +119,15 @@ void Robot::setIKTargets(const Vector4 &iFrontRightTarget, const Vector4 &iFront
     ikTargets[3] = limbs[3].normalizeTarget(iBackLeftTarget);
 }
 
+void Robot::setAngles(const Vector4 &iHipAngles, const Vector4 &iShoulderAngles, const Vector4 &iElbowAngles) {
+    int i = 4;
+    while(i--) {
+      limbs[i][0] = iHipAngles[i];
+      limbs[i][1] = iShoulderAngles[i];
+      limbs[i][2] = iElbowAngles[i];
+    }
+}
+
 void Robot::update() {
     int i = 4;
     while(i--) {
